@@ -1,0 +1,78 @@
+name: codesign
+
+# Focused, dependency-free CI for the `arwen-codesign` crate.
+#
+# Unlike the main `ci.yml` (which is pixi-based and only push-triggers on
+# `main`), this workflow runs on a push to *any* branch and needs nothing but
+# a Rust toolchain, so it works out of the box on a fork as soon as Actions is
+# enabled for the fork (Settings -> Actions -> General -> "Allow all actions").
+#
+# The macOS job additionally signs a binary with the arwen CLI and runs
+# Apple's own `codesign --verify --strict` on the result, so the signatures
+# are checked against the real system tooling, not only against the crate's
+# own verifier.
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+  RUST_BACKTRACE: 1
+
+jobs:
+  lint-and-test:
+    name: "lint + test | ubuntu"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust components
+        run: rustup component add rustfmt clippy
+      - name: Format
+        run: cargo fmt -p arwen-codesign -- --check
+      - name: Clippy
+        run: cargo clippy -p arwen-codesign --all-targets --all-features -- -D warnings
+      - name: Test (default features)
+        run: cargo test -p arwen-codesign
+      - name: Test (parallel feature)
+        run: cargo test -p arwen-codesign --features parallel
+
+  macos-verify:
+    name: "sign + codesign --verify | macos aarch64"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test (against the crate's own verifier)
+        run: cargo test -p arwen-codesign
+      - name: Build the arwen CLI
+        run: cargo build -p arwen
+      - name: Sign fixtures with arwen and verify with Apple's codesign
+        run: |
+          set -euxo pipefail
+          arwen="$(pwd)/target/debug/arwen"
+          work="$(mktemp -d)"
+          fixtures="tests/data/macho/codesign"
+
+          # A previously unsigned binary (signed from scratch) and an already
+          # linker-signed binary (re-signed). Both must be accepted by the
+          # system codesign tool after arwen signs them.
+          for name in test_exe_unsigned test_exe_linker_signed; do
+            cp "$fixtures/$name" "$work/$name"
+            "$arwen" macho adhoc-sign --identifier "$name" "$work/$name"
+            echo "::group::codesign -dvvv $name"
+            codesign -dvvv "$work/$name" || true
+            echo "::endgroup::"
+            # --verify checks that the code signature seals the binary; this is
+            # the authoritative on-device check.
+            codesign --verify --strict --verbose=4 "$work/$name"
+            echo "OK: $name verified by Apple codesign"
+          done
