@@ -44,10 +44,17 @@
 //!
 //! # Compatibility notes
 //!
-//! The produced signatures match what Apple's `codesign --sign -` generates
-//! for flat (non-bundle) files: a version `0x20400` CodeDirectory with
-//! SHA-256 page hashes, an empty Requirements blob and an empty CMS
-//! signature wrapper. Known limitations:
+//! For a plain ad-hoc sign of a flat (non-bundle) file — no entitlements, no
+//! hardened runtime — the output is **byte-for-byte identical** to what
+//! Apple's `codesign --sign -` produces, the whole file including the
+//! signature's trailing zero padding. This is checked in the test suite by
+//! re-signing binaries that were signed by the real `codesign` and asserting
+//! the bytes match exactly (see `tests/codesign.rs`).
+//!
+//! The signature is a version `0x20400` CodeDirectory with SHA-256 page
+//! hashes, an empty Requirements blob and an empty CMS signature wrapper.
+//! Known cases where the output is *not* bit-for-bit identical to codesign
+//! (all still valid signatures the kernel accepts):
 //!
 //! * Entitlements are embedded in plist form only (special slot 5); the
 //!   DER-encoded entitlements slot (slot 7) that `codesign` additionally
@@ -56,6 +63,12 @@
 //! * Hardened runtime signing emits a version `0x20400` CodeDirectory with
 //!   the `CS_RUNTIME` flag, without the "runtime version" field of version
 //!   `0x20500` directories.
+//! * The signature region is allocated as `content + 1 KiB`, rounded to 16
+//!   bytes, which matches `codesign --sign -` exactly. Signatures produced by
+//!   other `codesign` invocations (e.g. real identities) reserve a larger,
+//!   version-specific amount of slack for a CMS certificate; that padding
+//!   size is intentionally not reproduced, as it is neither documented nor
+//!   deterministic and has no effect on signature validity.
 
 mod blob;
 mod error;
