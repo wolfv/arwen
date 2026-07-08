@@ -1,5 +1,4 @@
-use arwen_codesign::{adhoc_sign, AdhocSignOptions, Entitlements};
-use arwen_macho::MachoError;
+use arwen_codesign::{adhoc_sign_file, AdhocSignOptions, Entitlements, SignError};
 use clap::Parser;
 use std::path::PathBuf;
 
@@ -26,10 +25,7 @@ pub struct Args {
     pub linker_signed: bool,
 }
 
-pub fn execute(args: Args) -> Result<(), MachoError> {
-    // Read the binary file
-    let data = std::fs::read(&args.file).unwrap();
-
+pub fn execute(args: Args) -> Result<(), SignError> {
     // Build signing options
     let mut options = AdhocSignOptions::new(&args.identifier);
 
@@ -45,11 +41,8 @@ pub fn execute(args: Args) -> Result<(), MachoError> {
         options = options.with_entitlements(Entitlements::Preserve);
     }
 
-    // Sign it
-    let signed_data = adhoc_sign(data, &options)?;
-
-    // Write the signed binary back
-    std::fs::write(&args.file, signed_data).unwrap();
+    // Sign the file in place (streaming, atomic replace).
+    adhoc_sign_file(&args.file, &options)?;
 
     println!("Successfully signed: {}", args.file.display());
 

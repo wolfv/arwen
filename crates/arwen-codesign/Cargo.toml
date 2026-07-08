@@ -1,19 +1,26 @@
 [package]
 name = "arwen-codesign"
-version = "0.0.1-alpha.1"
+version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Ad-hoc code signing for Mach-O binaries"
+description = "Fast ad-hoc code signing for Mach-O binaries"
 keywords = ["macho", "codesign", "signing", "darwin", "binary"]
 
 [dependencies]
-goblin = { workspace = true }
-scroll = { workspace = true }
 sha2 = { workspace = true }
 tempfile = { workspace = true }
+thiserror = { workspace = true }
+rayon = { workspace = true, optional = true }
+
+[features]
+default = []
+# Hash code pages in parallel (used by the in-memory `adhoc_sign` path).
+parallel = ["dep:rayon"]
+# Use assembly implementations of SHA-256 (requires a C toolchain).
+asm = ["sha2/asm"]
 
 [dev-dependencies]
 insta = { workspace = true }

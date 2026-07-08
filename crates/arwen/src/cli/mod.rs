@@ -64,6 +64,9 @@ struct Args {
 pub fn execute() -> Result<(), ArwenError> {
     let args = Args::parse();
     match args.command {
+        Command::Macho(MachoCommand::AdhocSign(args)) => {
+            macho::codesign::execute(args).map_err(ArwenError::Codesign)
+        }
         Command::Macho(args) => macho::execute(args).map_err(ArwenError::Macho),
         Command::Elf(elf) => elf::execute(elf).map_err(ArwenError::Elf),
     }
@@ -73,6 +76,9 @@ pub fn execute() -> Result<(), ArwenError> {
 pub enum ArwenError {
     #[error("error while patching Mach-O file")]
     Macho(#[from] arwen_macho::MachoError),
+
+    #[error("error while code signing Mach-O file")]
+    Codesign(#[from] arwen_codesign::SignError),
 
     #[error("error while patching ELF file")]
     Elf(#[from] arwen_elf::ElfError),

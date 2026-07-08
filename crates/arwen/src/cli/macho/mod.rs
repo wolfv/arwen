@@ -15,6 +15,8 @@ pub fn execute(macho: MachoCommand) -> Result<(), MachoError> {
         MachoCommand::AddRpath(args) => add::execute(args),
         MachoCommand::ChangeInstallName(args) => install_name::execute(args),
         MachoCommand::ChangeInstallId(args) => install_id::execute(args),
-        MachoCommand::AdhocSign(args) => codesign::execute(args),
+        // Code signing has its own error type and is dispatched directly in
+        // `cli::execute`.
+        MachoCommand::AdhocSign(_) => unreachable!("AdhocSign is handled in cli::execute"),
     }
 }
